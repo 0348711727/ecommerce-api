@@ -2,6 +2,7 @@ import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import productRouter from "./routes/product.route.js";
+import userRouter from "./routes/user.route.js"
 import errorMiddleware from "./middleware/error.js"
 dotenv.config();
 const corsOptions = {
@@ -15,6 +16,7 @@ app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 //defined route product
 app.use('/api/products', productRouter)
+app.use('/api/user', userRouter)
 //middleware for error
 app.use(errorMiddleware)
 
