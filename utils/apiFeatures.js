@@ -13,7 +13,7 @@ export default class ApiFeatures {
             }
             : {};
         // console.log(keyword);
-        console.log(this.queryStr)
+        // console.log(this.queryStr)
         this.query = this.query.find({ ...keyword })
         return this;
     }

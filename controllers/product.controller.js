@@ -19,9 +19,13 @@ const productController = {
 
         return res.status(200).json({ success: true, product })
     }),
+    //create Product with admin role
     createProduct: catchAsyncError(async (req, res, next) => {
+
+        req.body.user = req.user.id;
+
         const product = await Product.create(req.body)
-        console.log(req.body)
+
         return res.status(200).json({ success: true, message: "Product created successfully", product })
     }),
     updateProduct: catchAsyncError(async (req, res, next) => {

@@ -10,7 +10,7 @@ export const isAuthenticated = catchAsyncError(async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.SECRET_KEY)
 
     req.user = await User.findOne({ email: decoded.email })
-    console.log(req.user.roles)
+
     next();
 })
 export const authorizeRole = (...roles) => {
