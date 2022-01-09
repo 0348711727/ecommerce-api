@@ -1,8 +1,10 @@
 import ErrorHandler from "../utils/handlerError.js";
 import catchAsyncError from "../middleware/catchAsyncError.js";
 import User from "../models/user.model.js";
-import jwt from "jsonwebtoken";
-import bcrypt from "bcryptjs";
+import { hashPassword, updateResetPasswordToken, passwordCompare } from "./user.js";
+import nodemailer from "nodemailer";
+import crypto from "crypto";
+
 // import sendToken from "../utils/jwtToken.js";
 
 const userController = {
@@ -28,71 +30,73 @@ const userController = {
 
         const passwordHashed = user.password;
 
-        passwordCompare(req.body, passwordHashed, res, user, next)
+        // const check = await checkAccountActive(email, res)
+
+        passwordCompare(req.body, passwordHashed, res, next)
+
+        // checkAccountActive(req.body, passwordHashed, res, next)
+
     }),
     logOut: catchAsyncError(async (req, res, next) => {
-        console.log(req.cookies)
+        // console.log(req.cookies)
         res.cookie("token", null, {
             expires: new Date(Date.now()),
             httpOnly: true
         })
         return res.status(200).json({ success: true, message: 'Logout success' })
-    })
-}
+    }),
+    getAllUsers: catchAsyncError(async (req, res, next) => {
+        const user = await User.find({})
 
-function hashPassword(props, res) {
+        if (!user) return next(new ErrorHandler(`There is no user in the database`, 400))
 
-    const { password } = props;
+        res.status(200).json({ success: true, user })
+    }),
+    verifyEmail: catchAsyncError(async (req, res, next) => {
+        async function verify() {
+            let email = 'coccc1999@gmail.com'
+            let smtpTransport = nodemailer.createTransport({
+                service: 'Gmail',
+                auth: {
+                    user: 'Quangbrave21@gmail.com',
+                    pass: 'ocbgwldtvylitxda' //mật khẩu ứng dụng của gmail
+                },
+            });
+            var mailOptions = {
+                from: 'Quangbrave21@gmail.com',
+                to: email,
+                subject: ' | new message !',
+                text: "message"
+            }
+            smtpTransport.sendMail(mailOptions, async (error, response) => {
+                if (error) return next(new ErrorHandler(`Can't send code to your email`))
 
-    bcrypt.hash(password, 12, async (err, passwordHash) => {
+                const verifySuccess = await User.findOneAndUpdate({ email }, { $set: { active: true } }, { new: true })
 
-        if (err) return next(new ErrorHandler(`Couldn't hash password`, 404))
+                if (!verifySuccess) return next(new ErrorHandler(`A verify code has been send to ${email}, please login to receive this code ! :) `, 400))
+                return res.json({ message: `Verify successfully` })
 
-        try {
-            const newUser = await insertToMongo(props, passwordHash)
-
-            return res.status(200).json({ success: true, message: 'Sign up successfully', newUser });
-        } catch (error) {
-            console.log(error)
+            });
         }
+        verify();
     })
-}
-function passwordCompare(userInfo, passwordHashed, res, user, next) {
+    ,
+    forgotPassword: catchAsyncError(async (req, res, next) => {
+        const { email, password } = req.body;
 
-    bcrypt.compare(userInfo.password, passwordHashed, (err, result) => {
-        if (!result) return next(new ErrorHandler(`Password is incorrect`, 404))
+        const user = await User.find({ email })
 
-        setCookieToken(userInfo.email, res)
+        if (!user) return next(new ErrorHandler(`Email does not exist`, 400))
+
+
+
+        console.log(user[0].lastpassword)
+
+        if (user[0].lastpassword === null || user[0].lastpassword.includes(req.body.password)) return next(new ErrorHandler(`abc`))
+
+        updateResetPasswordToken(email)
+        return res.status(200).json(user)
     })
-}
-async function insertToMongo(props, passwordHash) {
-    const { name, email } = props;
-    const newUser = new User({
-        email,
-        name,
-        password: passwordHash,
-        avatar: {
-            public_id: 'avatar.sample',
-            url: 'https://123456'
-        }
-    })
-    await newUser.save();
-    return newUser;
-}
-export function getJWTToken(email) {
-
-    return jwt.sign({ email }, process.env.SECRET_KEY, { expiresIn: process.env.JWT_EXPIRE })
-}
-function setCookieToken(email, res) {
-    const token = getJWTToken(email);
-
-    const options = {
-        expires: new Date(
-            Date.now() + process.env.COOCKIE_EXPIRE * 24 * 60 * 60 * 1000
-        ),
-        httpOnly: true
-    };
-    return res.status(200).cookie('token', token, options).json({ message: 'Login success', success: true, token })
 }
 
 export default userController;

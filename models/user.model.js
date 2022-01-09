@@ -21,6 +21,11 @@ const User = mongoose.Schema({
         minLength: [6, 'Password must be at least 6 characters'],
         select: false
     },
+    active: {
+        type: Boolean,
+        default: false
+    },
+    tokenForSignup: String,
     avatar: {
         public_id: {
             type: String,
