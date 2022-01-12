@@ -1,7 +1,9 @@
 import { setJWTToken } from "../controllers/user.js";
 
-const sendToken = (email, user, res, message, statusCode) => {
+const sendToken = (email, res, message, statusCode) => {
+
     const token = setJWTToken(email);
+
     const options = {
         expires: new Date(
             Date.now() + process.env.COOCKIE_EXPIRE * 24 * 60 * 60 * 1000
