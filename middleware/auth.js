@@ -7,7 +7,7 @@ export const isAuthenticated = catchAsyncError(async (req, res, next) => {
 
     if (!token) return next(new ErrorHandler(`Please login to access this resource`, 404))
 
-    const decoded = jwt.verify(token, process.env.SECRET_KEY)
+    const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY)
 
     req.user = await User.findOne({ email: decoded.email })
 
