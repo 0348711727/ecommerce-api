@@ -40,8 +40,14 @@ const User = mongoose.Schema({
         type: String,
         default: 'guest'
     },
-    resetPasswordToken: String,
-    resetPasswordExpire: Date
+    tokenResetPass: {
+        type: String,
+        default: 123456
+    },
+    tokenResetPassExpire: {
+        type: Date,
+        default: Date.now()
+    }
 })
 
 // User.pre('save', async function (next) {
