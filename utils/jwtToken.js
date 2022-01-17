@@ -1,6 +1,6 @@
 import { setJWTToken } from "../controllers/user.js";
 
-const sendToken = (email, res, message, statusCode) => {
+const sendToken = (email, res) => {
 
     const token = setJWTToken(email);
 
@@ -10,7 +10,7 @@ const sendToken = (email, res, message, statusCode) => {
         ),
         httpOnly: true
     };
-    return res.status(statusCode).cookie('token', token, options).json({ succes: true, token, message });
+    return res.cookie('token', token, options)
 }
 
 export default sendToken;

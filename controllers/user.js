@@ -6,9 +6,7 @@ import crypto from "crypto";
 import nodemailer from "nodemailer";
 import emailExistence from "email-existence";
 //sign up action
-export async function hashPassword(props, res) {
-
-    const { password } = props;
+export async function hashPassword(password) {
 
     return new Promise((resolve, reject) => {
 
@@ -58,7 +56,7 @@ export async function sendMail(email, next, token, subject) {
         smtpTransport.sendMail(mailOptions, async (error, response) => {
             if (error) reject(next(new ErrorHandler(`Can't send code to your email`)))
 
-            resolve({ success: true, message: `A code has been sent to ${email}` })
+            resolve({ success: true, message: `Sign Up success. An email has been sent to ${email}. Please login to your gmail & active :)` })
         })
     })
 }
@@ -72,44 +70,43 @@ export async function verifyJWT(token, next) {
 }
 
 //create new code verify for forgot password
-export async function updateResetPasswordToken(email, next) {
+export async function updateResetPasswordToken(email, tokenReset) {
 
     //hashing and add reset token to User Model in Mongo
-    const user = findUser(email, next);
+    return new Promise(async (resolve, reject) => {
+        try {
+            await User.findOneAndUpdate({ email },
+                {
+                    $set: {
+                        tokenResetPass: crypto.createHash('sha256')
+                            .update(tokenReset)
+                            .digest('hex'),
+                        tokenResetPassExpire: Date.now() + 15 * 60 * 1000
+                    }
+                }, { new: true }, (err, result) => {
+                    if (err) reject(err);
 
-    const { resetPasswordToken, resetPasswordExpire } = user;
+                    resolve('Update token success')
+                }).clone();// .clone to query twice or more time with collection
+        } catch (error) {
 
-    const resetToken = await User.findOneAndUpdate({ email },
-        {
-            $set: {
-                resetPasswordToken: crypto.createHash('sha256')
-                    .update(user.resetPasswordToken)
-                    .digest('hex'),
-                resetPasswordExpire: Date.now() + 15 * 60 * 1000
-            },
-        }, { new: true }, (err, result) => {
+        }
+    })
 
-            if (err) return next(new ErrorHandler(`Can't reset password token`), 400)
-
-        })
-    return resetToken;
 }
 //compare password for login action
 export async function passwordCompare(props, passwordHashed, next) {
 
-    const user = await User.find({ email: props.email }).select("+password")
+    await User.find({ email: props.email }).select("+password")
 
     return new Promise((resolve, reject) => {
 
         bcrypt.compare(props.password, passwordHashed, async (err, result) => {
 
-            if (!result) { reject(next(new ErrorHandler(`Password is incorrect`, 404))) }
+            if (err) { reject(next(new ErrorHandler(`Password is incorrect`, 404))) }
 
             resolve(result)
         })
-
-        // await checkAccountActive(props, res, next)
-
     })
 }
 
@@ -129,29 +126,21 @@ export function setJWTToken(email) {
 
 }
 
-export async function checkAccountActive(email, res, next) {
+export async function checkAccountActive(isActive, next) {
 
-    const user = await findUser(email, next)
+    // const user = await findUser(email, next)
 
-    const token = setJWTToken(user.email)
+    // setJWTToken(user.email)
 
-    if (!user.active) {
-        await res.cookie('token', token, {
-            expires: new Date(
-                Date.now() + process.env.COOCKIE_EXPIRE * 24 * 60 * 60 * 1000
-            ),
-            httpOnly: true
-        })
+    if (!isActive) return;
 
-        return next(new ErrorHandler(`Account is not active yet, Please active your account`, 400))
-    }
-    return res.status(200).json({ success: true, message: 'Login successfully', user })
+    return { success: true, message: `Your account is activate` }
 }
 
 export async function findUser(email, next) {
     const user = await User.findOne({ email });
 
-    if (!user) return next(new ErrorHandler(`Your account does not exist`, 400))
+    if (!user) return next(new ErrorHandler(`You haven't register or your account does not exist`, 400))
 
     return user;
 }

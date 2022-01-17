@@ -7,7 +7,7 @@ import sendToken from "../utils/jwtToken.js";
 const userController = {
     signUp: catchAsyncError(async (req, res, next) => {
         const { name, email, password } = req.body;
-        let passwordHashed = null, verify = null;
+        let passwordHashed = null;
 
         if (!email || !password || !name) return next(new ErrorHandler(`Please fill in all the required fields`));
 
@@ -17,47 +17,50 @@ const userController = {
         try {
             const check = await checkGmailExist(email)
 
-            if (!check) return next(new ErrorHandler(`Your gmail account does not exist`, 404));
+            if (!check) return next(new ErrorHandler(`Your Google Gmail account does not exist`, 404));
 
-            passwordHashed = await hashPassword(req.body, res);
+            passwordHashed = await hashPassword(password);
 
             let user = await addUser(req.body, passwordHashed)
 
-            await sendToken(email, res, `Sign Up success. An email has been sent to ${email}. Please login to your gmail & active :)`, 200)
+            await sendToken(email, res)
 
-            const { token } = req.cookies;
+            // const { token } = req.cookies;
 
-            if (!token) return next(new ErrorHandler(`Please login first`, 400));
+            // if (!token) return next(new ErrorHandler(`Please login first`, 400));
 
-            user = await verifyJWT(token, next)// reasign user from token 
+            // user = await verifyJWT(token, next)// reasign user from token
 
-            await sendMail(email, next, user.tokenForSignup, 'to active your account')
+            const sendMailRes = await sendMail(email, next, user.tokenForSignup, `to activate your account`)
 
+            return res.status(200).json({ sendMailRes })
         } catch (e) {
             console.log(e);
         }
     }),
     logIn: catchAsyncError(async (req, res, next) => {
         const { email, password } = req.body;
-        let resultCompare = null;
-
-        if (!email || !password) return next(new ErrorHandler(`Please enter email and password`, 404))
-
-        const user = await User.findOne({ email }).select("+password")
-
-        if (!user) return next(new ErrorHandler(`Invalid email or password`, 404))
-
-        const passwordHashed = user.password;
-
-        // const check = await checkAccountActive(email, res)
 
         try {
+            if (!email || !password) return next(new ErrorHandler(`Please enter email and password`, 404))
+
+            const user = await User.findOne({ email }).select("+password")
+
+            if (!user) return next(new ErrorHandler(`Invalid email or password`, 404))
+
+            const passwordHashed = user.password;
+
             await passwordCompare(req.body, passwordHashed, next);
 
-            await checkAccountActive(email, res, next)
+            const isActive = await checkAccountActive(user.active, next)
 
-            await updateResetPasswordToken(email, next)
+            if (!isActive) return next(new ErrorHandler(`Account is not active yet, please active your account first`, 400))
 
+            await sendToken(email, res)
+
+            await updateResetPasswordToken(email, user.tokenResetPass)
+
+            return res.status(200).json({ success: true, message: 'Login successfully', user })
         } catch (error) {
             console.log(error)
         }
@@ -83,11 +86,9 @@ const userController = {
         const { verifyCode } = req.body;
         if (!token) return next(new ErrorHandler(`You haven't login yet`, 400))
 
-        // console.log(email)
-
         const user = await verifyJWT(token, next)
 
-        if (user.tokenForSignup !== verifyCode.toString()) return next(new ErrorHandler(`You have enter the wrong code`, 500));
+        if (user.tokenForSignup !== String(verifyCode)) return next(new ErrorHandler(`You have enter the wrong code`, 500));
 
         const verifySuccess = await User.findOneAndUpdate({ email: user.email }, { $set: { active: true } }, { new: true })
 
@@ -97,18 +98,46 @@ const userController = {
     })
     ,
     forgotPassword: catchAsyncError(async (req, res, next) => {
-        const { email, resetCode } = req.body;
+        const { email } = req.body;
 
-        const user = await findUser(email, next)
+        try {
+            const user = await findUser(email, next)
 
-        // console.log({ user })
+            if (user) {
 
-        updateResetPasswordToken(email)
-        const response = await sendMail(email, next, user.resetPasswordToken, 'to reset your password')
-        // return { success: true, message: `A reset pass code was sent to ${email}` }
-        // return res.status(200).json({ success: true, message: `A reset code has been sent to ${email}` })
+                await sendMail(email, next, user.tokenResetPass, 'to reset your password')
 
+                await updateResetPasswordToken(email, user.tokenResetPass, next)
 
+                await updateNewPassword(email)
+
+                return res.status(200).json({ success: true, message: `A reset code has been sent to ${email}` })
+            }
+        } catch (error) {
+            console.log(error)
+        }
+    }),
+    updateNewPassword: (email) => catchAsyncError(async (req, res, next) => {
+        const { resetCode } = req.body
+        let newPasswordHashed = null;
+        // console.log(email)
+        const user = await findUser(email, next) //1
+
+        if (user.resetPasswordToken !== resetCode) return next(new ErrorHandler(`Your reset code is not right`, 400)) //3
+
+        newPasswordHashed = await hashPassword(newPassword)
+
+        const changePass = await User.findOneAndUpdate({ email },
+            {
+                $set: { password: newPasswordHashed }
+            }, { new: true }, (error, result) => {
+                if (error) return next(new ErrorHandler(`Can't change password`, 404)) //4
+            }).clone()
+        // console.log({ changePass })
+        return res.status(200).json({ success: true, message: 'Password changed' })
+    }),
+    getUserDetails: catchAsyncError(async (req, res, next) => {
+        // console.log(req.user)
     })
 }
 
